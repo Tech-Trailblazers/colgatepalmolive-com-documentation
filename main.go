@@ -2,21 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 )
-
-// entry represents one item inside the "data" array of the JSON response.
-type entry struct {
-	SubID string `json:"subid"`
-}
-
-// root represents the top-level JSON structure returned by the API.
-type root struct {
-	Data []entry `json:"data"`
-}
 
 // sendRequest sends the POST request to the API with a dynamic "desc" value.
 // Returns the raw response body as []byte. Logs errors and returns nil if something fails.
@@ -62,40 +53,52 @@ func sendRequest(desc string) []byte {
 	return body
 }
 
-// parseSubIDs takes the raw JSON response body and extracts subids into a slice.
-// If parsing fails, an empty slice is returned.
-func parseSubIDs(body []byte) []string {
-	// Define a variable to hold the parsed JSON
-	var parsed root
+// SimpleRecord holds only the four fields we care about.
+type SimpleRecord struct {
+	SubID  string `json:"subid"`  // Product sub ID
+	Recn   int    `json:"recn"`   // Record number
+	Langu  string `json:"langu"`  // Language
+	SbgVid string `json:"sbgvid"` // GHS group ID
+}
 
-	// Try to unmarshal the JSON into our struct
-	err := json.Unmarshal(body, &parsed)
-	if err != nil {
+// fullJSON represents the top-level JSON structure.
+type fullJSON struct {
+	Data []struct {
+		SubID  string `json:"subid"`
+		Recn   int    `json:"recn"`
+		Langu  string `json:"langu"`
+		SbgVid string `json:"sbgvid"`
+	} `json:"data"`
+}
+
+// parseJSONToRecords takes JSON bytes and returns a slice of SimpleRecord.
+// Logs any errors and returns nil if parsing fails.
+func parseJSONToRecords(jsonBytes []byte) []SimpleRecord {
+	// Variable to hold the parsed full JSON
+	var parsedData fullJSON
+
+	// Parse the JSON into the struct
+	if err := json.Unmarshal(jsonBytes, &parsedData); err != nil {
 		log.Println("Error parsing JSON:", err)
 		return nil
 	}
 
-	// Collect all subids into a slice
-	var subIDs []string
-	for _, item := range parsed.Data {
-		subIDs = append(subIDs, item.SubID)
-	}
+	// Slice to store simplified records
+	var simplifiedRecords []SimpleRecord
 
-	// Return the slice of subids
-	return subIDs
-}
-
-// Remove all the duplicates from a slice and return the slice.
-func removeDuplicatesFromSlice(slice []string) []string {
-	check := make(map[string]bool)
-	var newReturnSlice []string
-	for _, content := range slice {
-		if !check[content] {
-			check[content] = true
-			newReturnSlice = append(newReturnSlice, content)
+	// Loop over each item in the data array
+	for _, item := range parsedData.Data {
+		record := SimpleRecord{
+			SubID:  item.SubID,
+			Recn:   item.Recn,
+			Langu:  item.Langu,
+			SbgVid: item.SbgVid,
 		}
+		// Add the simplified record to the slice
+		simplifiedRecords = append(simplifiedRecords, record)
 	}
-	return newReturnSlice
+
+	return simplifiedRecords
 }
 
 func main() {
@@ -107,13 +110,16 @@ func main() {
 	if body == nil {
 		return // Exit early if request failed
 	}
+	// Step 2: Parse the JSON into a slice of SimpleRecord
+	records := parseJSONToRecords([]byte(body))
 
-	// Step 2: Parse the body to extract subids
-	subIDs := parseSubIDs(body)
-
-	// Step 3: Remove duplicates.
-	subIDs = removeDuplicatesFromSlice(subIDs)
-
-	// Print the result
-	log.Println("Extracted subids:", subIDs)
+	// Step 2: Display each individual field clearly
+	for index, record := range records {
+		fmt.Printf("Record %d:\n", index+1)
+		fmt.Printf("SubID : %s\n", record.SubID)
+		fmt.Printf("Recn : %d\n", record.Recn)
+		fmt.Printf("Language : %s\n", record.Langu)
+		fmt.Printf("SbgVid : %s\n", record.SbgVid)
+		fmt.Println("---")
+	}
 }
