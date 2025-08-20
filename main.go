@@ -114,8 +114,7 @@ func main() {
 	records := parseJSONToRecords([]byte(body))
 
 	// Step 2: Display each individual field clearly
-	for index, record := range records {
-		fmt.Printf("Record %d:\n", index+1)
+	for _, record := range records {
 		fmt.Printf("SubID : %s\n", record.SubID)
 		fmt.Printf("Recn : %d\n", record.Recn)
 		fmt.Printf("Language : %s\n", record.Langu)
